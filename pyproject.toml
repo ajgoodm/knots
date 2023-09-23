@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "knot exploration"
+version = "0.1.0"
+description = "tools for representing, loading, and manipulating knots"
+authors = [
+  "Aaron Aster <aarongoodm@gmail.com>"
+]
+repository = "https://github.com/ajgoodm/knots"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+attrs = "^23.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "~3"
+pytest = "~7"
+
