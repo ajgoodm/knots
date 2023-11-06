@@ -11,7 +11,6 @@ from knots.serde.raster.thinning import (
     zhang_suen_thinning_algorithm,
 )
 
-
 TREFOIL_PATH = Path(__file__).parent / "data" / "trefoil.png"
 
 
