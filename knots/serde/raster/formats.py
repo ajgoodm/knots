@@ -114,7 +114,7 @@ def grayscale_to_binary_mask(
     percentile.
     """
     if threshold_quantile < 0 or threshold_quantile > 1:
-        raise ValueError(f"Threshold quantile must be between 0 and 1 inclusive")
+        raise ValueError("Threshold quantile must be between 0 and 1 inclusive")
 
     if large_values_are_true:
         quantile = np.quantile(grayscale.values.ravel(), threshold_quantile)

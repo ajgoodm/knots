@@ -1,13 +1,20 @@
 repos:
--   repo: https://github.com/pre-commit/mirrors-pylint
-    rev: v2.3.1
-    hooks:
-    -   id: pylint
 - repo: local
   hooks:
     - id: mypy
       name: mypy
       entry: "./tools/run-mypy"
+      language: system
+      # trigger for commits changing Python files
+      types: [python]
+      # use require_serial so that script
+      # is only called once per commit
+      require_serial: true
+      # print the number of files as a sanity-check
+      verbose: true
+    - id: pylint
+      name: pylint
+      entry: "./tools/run-pylint"
       language: system
       # trigger for commits changing Python files
       types: [python]

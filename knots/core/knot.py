@@ -46,9 +46,7 @@ class Knot:
             # an empty sequence is the unknot
             return
 
-        previous_destination: Optional[  # pylint: disable=unsubscriptable-object
-            Crossing
-        ] = None
+        previous_destination: Optional[Crossing] = None
         for idx, line in enumerate(lines):
             if previous_destination is not None and previous_destination != line.origin:
                 raise InvalidKnotError(
