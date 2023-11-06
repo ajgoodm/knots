@@ -12,6 +12,9 @@ from knots.serde.raster.thinning import (
 )
 
 
+TREFOIL_PATH = Path(__file__).parent / "data" / "trefoil.png"
+
+
 def _input_to_bool(char: str) -> np.bool_:
     if char == " ":
         return np.bool_(False)
@@ -134,6 +137,5 @@ class TestZhangSuen:
     # fmt: on
 
     def test_zhang_suen_thinning_algorithm(self):
-        TREFOIL_PATH = Path("/Users/aaronaster/Desktop/trefoil.png")
         mask = read_raster_knot(TREFOIL_PATH)
         zhang_suen_thinning_algorithm(mask.data)
