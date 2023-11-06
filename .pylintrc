@@ -3,7 +3,7 @@
 init-hook='import sys; sys.setrecursionlimit(5000)'
 
 [MESSAGES CONTROL]
-disable = E1101, C0103, C0412, C0111, W0511, W1201, no-self-use, bad-continuation, import-error, logging-fstring-interpolation, logging-format-interpolation, wildcard-import, broad-except, inconsistent-return-statements, line-too-long, no-value-for-parameter, singleton-comparison, unused-argument, anomalous-backslash-in-string
+disable = E1101, C0103, C0412, C0111, W0511, W1201, import-error, logging-fstring-interpolation, logging-format-interpolation, wildcard-import, broad-except, inconsistent-return-statements, line-too-long, no-value-for-parameter, singleton-comparison, unused-argument, anomalous-backslash-in-string
 
 [BASIC]
 # Provide some good names that we allow
@@ -38,7 +38,3 @@ ignore-docstrings=yes
 
 # Ignore imports when computing similarities.
 ignore-imports=yes
-
-[IMPORTS]
-# Force import order to recognize a module as part of a third party library.
-known-third-party=indigoag.ads, common_agronomy

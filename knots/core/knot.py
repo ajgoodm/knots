@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 import attr
 
@@ -40,10 +41,18 @@ class Knot:
         return cls(crossing_sequence=lines)
 
     @staticmethod
-    def _validate_sequence(lines: tuple[Line]):
+    def _validate_sequence(lines: tuple[Line]) -> None:
         if not lines:
             # an empty sequence is the unknot
             return
+
+        previous_destination: Optional[Crossing] = None
+        for idx, line in enumerate(lines):
+            if previous_destination is not None and previous_destination != line.origin:
+                raise InvalidKnotError(
+                    f"Sequence of lines contains inconsistent origin, destination information ({idx - 1} to {idx})"
+                )
+            previous_destination = line.destination
 
         start_node = lines[0].origin
         end_node = lines[-1].destination
