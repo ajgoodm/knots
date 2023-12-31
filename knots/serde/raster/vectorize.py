@@ -1,12 +1,51 @@
-from collections import deque
+import math
 import operator as ops
+from collections import deque
+from collections.abc import Iterable
+from enum import Enum
+from functools import partial
 from typing import Optional
 
 import attr
 import numpy as np
 import numpy.typing as npt
-from attr.validators import instance_of
+from attr.validators import instance_of, deep_iterable
 from shapely.geometry import Point, LineString
+
+from knots.core.knot import Knot
+
+STRAND_END_LENGTH = 10
+MAX_ANGLE_STRAND_TO_CANDIDATE_DEGREES = 30
+
+
+@attr.frozen
+class Vec2D:
+    x_component: float
+    y_component: float
+
+    def length(self) -> float:
+        return math.sqrt(self.x_component**2 + self.y_component**2)
+
+    def unit_vector(self) -> "Vec2D":
+        return Vec2D(self.x_component / self.length(), self.y_component / self.length())
+
+    def angle_between_in_degrees(self, other: "Vec2D") -> float:
+        self_unit = self.unit_vector()
+        other_unit = other.unit_vector()
+
+        unit_dot_product = (
+            self_unit.x_component * self_unit.x_component
+            + other_unit.y_component * other_unit.y_component
+        )
+        angle_radians = math.acos(unit_dot_product)
+        angle_degrees = angle_radians * 360 / (2 * math.pi)
+        while angle_degrees > 360:
+            angle_degrees -= 360
+
+        if angle_degrees > 180:
+            angle_degrees = 360 - angle_degrees
+
+        return angle_degrees
 
 
 @attr.frozen
@@ -19,19 +58,129 @@ class KnotStrand:
             raise ValueError("Knot strands must be non-empty")
 
     @property
-    def terminus_1(self) -> Point:
-        return Point(self.strand.coords[0])
-
-    @property
-    def terminus_2(self) -> Point:
-        return Point(self.strand.coords[-1])
-
-    @property
-    def ends(self) -> tuple[Point, Point]:
-        return (
-            self.terminus_1,
-            self.terminus_2,
+    def left_end(self) -> tuple[Point, Vec2D]:
+        end = self.strand.coords[:STRAND_END_LENGTH]
+        from_ = end[-1]
+        to_ = end[0]
+        vec = Vec2D(
+            x_component=to_[0] - from_[0],
+            y_component=to_[1] - from_[1],
         )
+
+        return Point(self.strand.coords[0]), vec
+
+    @property
+    def right_end(self) -> tuple[Point, Vec2D]:
+        end = self.strand.coords[(STRAND_END_LENGTH * -1) :]
+        from_ = end[0]
+        to_ = end[-1]
+        vec = Vec2D(
+            x_component=to_[0] - from_[0],
+            y_component=to_[1] - from_[1],
+        )
+
+        return Point(self.strand.coords[-1]), vec
+
+
+class _LeftOrRight(Enum):
+    LEFT = 0
+    RIGHT = 1
+
+
+_StrandEnd = tuple[KnotStrand, _LeftOrRight]
+
+
+def _filter_candidate_ends(
+    previous_end: _StrandEnd, strand_ends: Iterable[_StrandEnd]
+) -> list[_StrandEnd]:
+    """Look through remaining unpaired strand ends and filter to
+    those that are 'lined up' with the previous end.
+    """
+    previous_strand, left_or_right = previous_end
+    if left_or_right == _LeftOrRight.LEFT:
+        previous_point, previous_vec = previous_strand.left_end
+    else:
+        previous_point, previous_vec = previous_strand.right_end
+
+    candidates: list[_StrandEnd] = []
+    for strand_end in strand_ends:
+        strand, left_or_right = strand_end
+
+        if left_or_right == _LeftOrRight.LEFT:
+            candidate_point, _ = strand.left_end
+        else:
+            candidate_point, _ = strand.right_end
+
+        vec_to_candidate = Vec2D(
+            candidate_point.x - previous_point.x, candidate_point.y - previous_point.y
+        )
+        angle_to_candidate = previous_vec.angle_between_in_degrees(vec_to_candidate)
+        if angle_to_candidate <= MAX_ANGLE_STRAND_TO_CANDIDATE_DEGREES:
+            candidates.append(strand_end)
+
+    return candidates
+
+
+def _distance_to_candidate(candidate: _StrandEnd, previous_end: _StrandEnd) -> float:
+    """Find the distance from the previous end to the candidate strand end"""
+    previous_strand, left_or_right = previous_end
+    if left_or_right == _LeftOrRight.LEFT:
+        from_, _ = previous_strand.left_end
+    else:
+        from_, _ = previous_strand.right_end
+
+    candidate_strand, left_or_right = candidate
+    if left_or_right == _LeftOrRight.LEFT:
+        to_, _ = candidate_strand.left_end
+    else:
+        to_, _ = candidate_strand.right_end
+
+    return Vec2D(x_component=to_.x - from_.x, y_component=to_.y - from_.y).length()
+
+
+@attr.frozen
+class KnotStrandCollection:
+    strands: tuple[KnotStrand, ...] = attr.ib(
+        validator=deep_iterable(instance_of(KnotStrand), instance_of(tuple))
+    )
+
+    @classmethod
+    def new(cls, strands: Iterable[KnotStrand]) -> "KnotStrandCollection":
+        if not strands:
+            raise ValueError("Must provide some strands to KnotStrandCollection")
+
+        strand_ends: set[_StrandEnd] = set()
+        for strand in strands:
+            strand_ends.add(
+                (
+                    strand,
+                    _LeftOrRight.LEFT,
+                )
+            )
+            strand_ends.add((strand, _LeftOrRight.RIGHT))
+
+        first = next(iter(strand_ends))
+        strand_ends.remove(first)
+        ordered_strand_ends: list[_StrandEnd] = [first]
+        while strand_ends:
+            previous_end = ordered_strand_ends[-1]
+            candidates = _filter_candidate_ends(previous_end, strand_ends)
+            if not candidates:
+                raise ValueError(
+                    f"Unpaired strand ends, remain, but unable to find match for {previous_end}"
+                )
+
+            next_strand_end = min(
+                candidates,
+                key=partial(_distance_to_candidate, previous_end=previous_end),
+            )
+            ordered_strand_ends.append(next_strand_end)
+            strand_ends.remove(next_strand_end)
+
+        return cls(strands=tuple(strands))
+
+    def to_knot(self) -> Knot:
+        raise NotImplementedError()
 
 
 @attr.frozen
@@ -150,7 +299,7 @@ def _extract_single_strand(coords: set[Coord]) -> tuple[KnotStrand, set[Coord]]:
 
 def vectorize_thinned_mask(
     thinned_mask: npt.NDArray[np.bool_],
-) -> tuple[KnotStrand, ...]:
+) -> KnotStrandCollection:
     strand_coords: set[Coord] = set(map(Coord.from_tuple, zip(*np.where(thinned_mask))))  # type: ignore[arg-type]
 
     knot_strands: list[KnotStrand] = []
@@ -158,4 +307,4 @@ def vectorize_thinned_mask(
         new_strand, strand_coords = _extract_single_strand(strand_coords)
         knot_strands.append(new_strand)
 
-    return tuple(knot_strands)
+    return KnotStrandCollection.new(knot_strands)
