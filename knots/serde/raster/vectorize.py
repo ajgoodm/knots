@@ -14,7 +14,6 @@ from shapely.geometry import Point, LineString
 
 from knots.core.knot import Knot
 
-STRAND_END_LENGTH = 10
 MAX_ANGLE_STRAND_TO_CANDIDATE_DEGREES = 30
 
 
@@ -61,16 +60,29 @@ class Vec2D:
 
 @attr.frozen
 class KnotStrand:
+    MINIMUM_LENGTH = 20
+
     strand: LineString = attr.ib(validator=instance_of(LineString))
 
     @strand.validator
-    def is_nonempty(self, attribute, value):  # type: ignore[no-untyped-def]
-        if len(value.coords) == 0:
-            raise ValueError("Knot strands must be non-empty")
+    def is_sufficiently_long(self, attribute, value):  # type: ignore[no-untyped-def]
+        if len(value.coords) < KnotStrand.MINIMUM_LENGTH:
+            raise ValueError(
+                f"Knot strands must have at least {KnotStrand.MINIMUM_LENGTH} coordinates"
+            )
+
+    @property
+    def length(self) -> int:
+        return len(self.strand.coords)
+
+    @property
+    def _end_length(self) -> int:
+        """10 percent of the self's length; used in finding end vectors."""
+        return math.ceil(self.length * 0.1)
 
     @property
     def left_end(self) -> tuple[Point, Vec2D]:
-        end = self.strand.coords[:STRAND_END_LENGTH]
+        end = self.strand.coords[: self._end_length]
         from_ = end[-1]
         to_ = end[0]
         vec = Vec2D(
@@ -82,7 +94,7 @@ class KnotStrand:
 
     @property
     def right_end(self) -> tuple[Point, Vec2D]:
-        end = self.strand.coords[(STRAND_END_LENGTH * -1) :]
+        end = self.strand.coords[(-1 * self._end_length) :]
         from_ = end[0]
         to_ = end[-1]
         vec = Vec2D(

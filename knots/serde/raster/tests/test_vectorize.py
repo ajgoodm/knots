@@ -1,8 +1,9 @@
 import math
 
 import pytest
+from shapely import LineString, Point
 
-from knots.serde.raster.vectorize import Vec2D
+from knots.serde.raster.vectorize import Vec2D, KnotStrand
 
 
 class TestVec2D:
@@ -33,3 +34,22 @@ class TestVec2D:
     def test_angle_between_degress(self):
         observed_angle = Vec2D(0, 1).angle_between_degrees(Vec2D(1, 0))
         assert observed_angle == 90
+
+
+class TestKnotStrang:
+    @pytest.fixture
+    def strand(self) -> KnotStrand:
+        strand = LineString([(x, x) for x in range(-10, 10)])
+        return KnotStrand(strand)
+
+    def test_strand_properties(self, strand: KnotStrand):
+        assert strand.length == 20
+        assert strand._end_length == 2  # pylint: disable=protected-access
+
+        obs_left, obs_left_vec = strand.left_end
+        assert obs_left.equals(Point(-10, -10))
+        assert obs_left_vec == Vec2D(-1, -1)
+
+        obs_right, obs_right_vec = strand.right_end
+        assert obs_right.equals(Point(9, 9))
+        assert obs_right_vec == Vec2D(1, 1)
