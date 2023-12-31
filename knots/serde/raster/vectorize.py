@@ -29,23 +29,34 @@ class Vec2D:
     def unit_vector(self) -> "Vec2D":
         return Vec2D(self.x_component / self.length(), self.y_component / self.length())
 
-    def angle_between_in_degrees(self, other: "Vec2D") -> float:
+    def dot_product(self, other: "Vec2D") -> float:
+        return (
+            self.x_component * other.x_component + self.y_component * other.y_component
+        )
+
+    def angle_between_radians(self, other: "Vec2D") -> float:
+        """Return the angle between self and other in radians.
+        This function is symmetric, always returning a positive angle.
+        It also always returns the _smallest_ angle between two vectors
+        (i.e. is always less than pi)
+        """
         self_unit = self.unit_vector()
         other_unit = other.unit_vector()
 
-        unit_dot_product = (
-            self_unit.x_component * self_unit.x_component
-            + other_unit.y_component * other_unit.y_component
-        )
+        unit_dot_product = self_unit.dot_product(other_unit)
         angle_radians = math.acos(unit_dot_product)
-        angle_degrees = angle_radians * 360 / (2 * math.pi)
-        while angle_degrees > 360:
-            angle_degrees -= 360
+        while angle_radians > 2 * math.pi:
+            angle_radians -= 2 * math.pi
+        while angle_radians < 0:
+            angle_radians += 2 * math.pi
+        if angle_radians > math.pi:
+            # we want the _smallest_ angle between these two vectors
+            angle_radians = 2 * math.pi - angle_radians
+        return angle_radians
 
-        if angle_degrees > 180:
-            angle_degrees = 360 - angle_degrees
-
-        return angle_degrees
+    def angle_between_degrees(self, other: "Vec2D") -> float:
+        angle_radians = self.angle_between_radians(other)
+        return angle_radians * (360.0 / (2 * math.pi))
 
 
 @attr.frozen
@@ -114,7 +125,7 @@ def _filter_candidate_ends(
         vec_to_candidate = Vec2D(
             candidate_point.x - previous_point.x, candidate_point.y - previous_point.y
         )
-        angle_to_candidate = previous_vec.angle_between_in_degrees(vec_to_candidate)
+        angle_to_candidate = previous_vec.angle_between_degrees(vec_to_candidate)
         if angle_to_candidate <= MAX_ANGLE_STRAND_TO_CANDIDATE_DEGREES:
             candidates.append(strand_end)
 
