@@ -169,6 +169,9 @@ class KnotStrandCollection:
 
     @classmethod
     def new(cls, strands: Iterable[KnotStrand]) -> "KnotStrandCollection":
+        """Take a collection of KnotStrand's and place them in the
+        order of the knot (Find which termini are linked across gaps)
+        """
         if not strands:
             raise ValueError("Must provide some strands to KnotStrandCollection")
 

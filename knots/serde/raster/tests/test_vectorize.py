@@ -3,7 +3,7 @@ import math
 import pytest
 from shapely import LineString, Point
 
-from knots.serde.raster.vectorize import Vec2D, KnotStrand
+from knots.serde.raster.vectorize import Vec2D, KnotStrand, KnotStrandCollection
 
 
 class TestVec2D:
@@ -36,7 +36,7 @@ class TestVec2D:
         assert observed_angle == 90
 
 
-class TestKnotStrang:
+class TestKnotStrand:
     @pytest.fixture
     def strand(self) -> KnotStrand:
         strand = LineString([(x, x) for x in range(-10, 10)])
@@ -53,3 +53,34 @@ class TestKnotStrang:
         obs_right, obs_right_vec = strand.right_end
         assert obs_right.equals(Point(9, 9))
         assert obs_right_vec == Vec2D(1, 1)
+
+
+class TestKnotStrandCollection:
+    @pytest.fixture
+    def figure_eight(self) -> KnotStrand:
+        """A single un-knot crossed on top of itself
+        like a figure eight.
+
+            +----+
+            |    |
+            +--->|<---+
+                 |    |
+                 +----+
+
+        """
+        # fmt: off
+        strand = LineString([
+            (0.1, 0), (0.2, 0), (0.3, 0),
+            (0.3, -0.1), (0.3, -0.2), (-0.3, -0.3),
+            (-0.2, -0.3), (-0.1, -0.3), (0, -0.3),
+            (0, -0.2), (0, -0.1), (0, 0), (0, 0.1), (0, 0.2), (0, 0.3),
+            (-0.1, 0.3), (-0.2, 0.3), (-0.3, 0.3),
+            (-0.3, 0.2), (-0.3, 0.1), (-0.3, 0),
+            (-0.2, 0), (-0.1, 0)
+        ])
+        # fmt: on
+        return KnotStrand(strand)
+
+    def test_new(self, figure_eight: KnotStrand):
+        result = KnotStrandCollection.new([figure_eight])
+        print(result)
