@@ -105,66 +105,66 @@ class KnotStrand:
         return Point(self.strand.coords[-1]), vec
 
 
-class _LeftOrRight(Enum):
+class LeftOrRight(Enum):
     LEFT = 0
     RIGHT = 1
 
+    @property
+    def opposite(self) -> "LeftOrRight":
+        if self == LeftOrRight.LEFT:
+            return LeftOrRight.RIGHT
+        return LeftOrRight.LEFT
 
-_StrandEnd = tuple[KnotStrand, _LeftOrRight]
+
+@attr.frozen
+class StrandEnd:
+    strand: KnotStrand = attr.ib(validator=instance_of(KnotStrand))
+    left_right: LeftOrRight = attr.ib(validator=instance_of(LeftOrRight))
+
+    def as_point_vec(self) -> tuple[Point, Vec2D]:
+        if self.left_right == LeftOrRight.LEFT:
+            return self.strand.left_end
+        return self.strand.right_end
+
+    def other_end(self) -> "StrandEnd":
+        """Return the other end of this strand"""
+        return StrandEnd(self.strand, self.left_right.opposite)
 
 
-def _filter_candidate_ends(
-    previous_end: _StrandEnd, strand_ends: Iterable[_StrandEnd]
-) -> list[_StrandEnd]:
+def _find_candidate_ends(
+    previous_end: StrandEnd, strand_ends: Iterable[StrandEnd]
+) -> list[StrandEnd]:
     """Look through remaining unpaired strand ends and filter to
     those that are 'lined up' with the previous end.
     """
-    previous_strand, left_or_right = previous_end
-    if left_or_right == _LeftOrRight.LEFT:
-        previous_point, previous_vec = previous_strand.left_end
-    else:
-        previous_point, previous_vec = previous_strand.right_end
+    previous_point, previous_vec = previous_end.as_point_vec()
 
-    candidates: list[_StrandEnd] = []
+    candidates: list[StrandEnd] = []
     for strand_end in strand_ends:
-        strand, left_or_right = strand_end
-
-        if left_or_right == _LeftOrRight.LEFT:
-            candidate_point, _ = strand.left_end
-        else:
-            candidate_point, _ = strand.right_end
-
-        vec_to_candidate = Vec2D(
+        candidate_point, _ = strand_end.as_point_vec()
+        vec_pointing_at_candidate = Vec2D(
             candidate_point.x - previous_point.x, candidate_point.y - previous_point.y
         )
-        angle_to_candidate = previous_vec.angle_between_degrees(vec_to_candidate)
+        angle_to_candidate = previous_vec.angle_between_degrees(
+            vec_pointing_at_candidate
+        )
         if angle_to_candidate <= MAX_ANGLE_STRAND_TO_CANDIDATE_DEGREES:
             candidates.append(strand_end)
 
     return candidates
 
 
-def _distance_to_candidate(candidate: _StrandEnd, previous_end: _StrandEnd) -> float:
+def _distance_to_candidate(candidate: StrandEnd, previous_end: StrandEnd) -> float:
     """Find the distance from the previous end to the candidate strand end"""
-    previous_strand, left_or_right = previous_end
-    if left_or_right == _LeftOrRight.LEFT:
-        from_, _ = previous_strand.left_end
-    else:
-        from_, _ = previous_strand.right_end
-
-    candidate_strand, left_or_right = candidate
-    if left_or_right == _LeftOrRight.LEFT:
-        to_, _ = candidate_strand.left_end
-    else:
-        to_, _ = candidate_strand.right_end
-
+    from_, _ = previous_end.as_point_vec()
+    to_, _ = candidate.as_point_vec()
     return Vec2D(x_component=to_.x - from_.x, y_component=to_.y - from_.y).length()
 
 
 @attr.frozen
 class KnotStrandCollection:
-    strands: tuple[KnotStrand, ...] = attr.ib(
-        validator=deep_iterable(instance_of(KnotStrand), instance_of(tuple))
+    strands: tuple[StrandEnd, ...] = attr.ib(
+        validator=deep_iterable(instance_of(StrandEnd), instance_of(tuple))
     )
 
     @classmethod
@@ -175,35 +175,33 @@ class KnotStrandCollection:
         if not strands:
             raise ValueError("Must provide some strands to KnotStrandCollection")
 
-        strand_ends: set[_StrandEnd] = set()
+        strand_ends: list[StrandEnd] = []
         for strand in strands:
-            strand_ends.add(
-                (
-                    strand,
-                    _LeftOrRight.LEFT,
-                )
-            )
-            strand_ends.add((strand, _LeftOrRight.RIGHT))
+            strand_ends.append(StrandEnd(strand, LeftOrRight.LEFT))
+            strand_ends.append(StrandEnd(strand, LeftOrRight.RIGHT))
 
-        first = next(iter(strand_ends))
-        strand_ends.remove(first)
-        ordered_strand_ends: list[_StrandEnd] = [first]
+        start = strand_ends[0]  # leave the end to complete the knot
+        ordered_strand_ends: list[StrandEnd] = [start]
         while strand_ends:
-            previous_end = ordered_strand_ends[-1]
-            candidates = _filter_candidate_ends(previous_end, strand_ends)
-            if not candidates:
+            end = start.other_end()
+            ordered_strand_ends.append(end)
+            strand_ends.remove(end)
+
+            next_strand_start_candidates = _find_candidate_ends(end, strand_ends)
+            if not next_strand_start_candidates:
                 raise ValueError(
-                    f"Unpaired strand ends, remain, but unable to find match for {previous_end}"
+                    f"Unpaired strand ends, remain, but unable to find match for {end}"
                 )
 
-            next_strand_end = min(
-                candidates,
-                key=partial(_distance_to_candidate, previous_end=previous_end),
+            start = min(
+                next_strand_start_candidates,
+                key=partial(_distance_to_candidate, previous_end=end),
             )
-            ordered_strand_ends.append(next_strand_end)
-            strand_ends.remove(next_strand_end)
 
-        return cls(strands=tuple(strands))
+            ordered_strand_ends.append(start)
+            strand_ends.remove(start)
+
+        return cls(strands=tuple(ordered_strand_ends))
 
     def to_knot(self) -> Knot:
         raise NotImplementedError()

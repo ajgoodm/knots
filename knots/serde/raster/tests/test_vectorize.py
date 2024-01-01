@@ -1,9 +1,19 @@
 import math
+from pathlib import Path
 
 import pytest
 from shapely import LineString, Point
 
-from knots.serde.raster.vectorize import Vec2D, KnotStrand, KnotStrandCollection
+from knots.serde.raster.vectorize import (
+    Vec2D,
+    KnotStrand,
+    KnotStrandCollection,
+    vectorize_thinned_mask,
+)
+from knots.serde.raster.formats import read_raster_knot
+from knots.serde.raster.thinning import zhang_suen_thinning_algorithm
+
+TREFOIL_PATH = Path(__file__).parent / "data" / "trefoil.png"
 
 
 class TestVec2D:
@@ -84,3 +94,8 @@ class TestKnotStrandCollection:
     def test_new(self, figure_eight: KnotStrand):
         result = KnotStrandCollection.new([figure_eight])
         print(result)
+
+    def test_vectorize_thinned_mask(self):
+        mask = read_raster_knot(TREFOIL_PATH)
+        thinned = zhang_suen_thinning_algorithm(mask.data)
+        vectorize_thinned_mask(thinned.data)
